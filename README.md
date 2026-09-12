@@ -1,8 +1,8 @@
 # VoiceComics
 
-A real-time, voice-first social-simulation webcomic. Hold the mic (or type, in mock mode), and a simulated character reacts — rapport, patience, and comfort shift turn by turn, rendered as a live monochrome sketch-comic panel with synthesized character speech.
+A real-time, voice-first interactive story engine. The app narrates a scene and illustrates it as a live monochrome sketch-comic panel; you speak (or type, in mock mode) what you do; the story continues based on your action; after a handful of beats it reaches a real ending. The payoff is a full comic-strip recap of your playthrough, exportable as a PNG.
 
-This is the MVP vertical slice: one character ("Alex", a dorm-lounge study session), one background, four poses × five expressions, three FX, and a fully working end-to-end loop. See [.claude/plans](.) history for the fuller roadmap this extends toward.
+The current story is **"The Late Shift"** — a solo mystery/suspense premise, one background, four poses × five expressions, three FX, and a fully working end-to-end loop from opening beat to comic export. See [.claude/plans](.) history for the fuller roadmap (a scene picker, multiple premises, real multi-counterpart scenes) this extends toward.
 
 ## Quick start (zero API keys)
 
@@ -15,7 +15,7 @@ npm run dev
 - Server: `http://localhost:8787` (WebSocket at `/ws`)
 - Client: `http://localhost:5173`
 
-Everything defaults to **mock mode** — no API keys required. STT is replaced by a text input, the LLM orchestrator by a deterministic rule-based responder, and TTS by the browser's built-in voice (Web Speech API). Open `http://localhost:5173`, type a line like *"Hey, mind if I sit here?"*, and watch the panel update.
+Everything defaults to **mock mode** — no API keys required. STT is replaced by a text input, the story orchestrator by a deterministic keyword-classifying beat bank (bold / cautious / curious / neutral actions each pick from hand-authored narration), and TTS by the browser's built-in voice (Web Speech API). Open `http://localhost:5173` and type what you do at each beat, e.g. *"I open the file and read it"*.
 
 ## Going live
 
@@ -32,7 +32,7 @@ TTS_PROVIDER=elevenlabs
 ELEVENLABS_API_KEY=...
 ```
 
-Each is independent — you can go live on one and stay mock on the others. If a `*_PROVIDER` is set but its key is missing, the server logs a warning and falls back to mock for that category rather than crashing. Once `STT_PROVIDER` is live, the client automatically switches from the text input to a hold-to-talk mic button.
+Each is independent — you can go live on one and stay mock on the others. If a `*_PROVIDER` is set but its key is missing, the server logs a warning and falls back to mock for that category rather than crashing. Once `STT_PROVIDER` is live, the client automatically switches from the text input to a hold-to-talk mic button. Live mode hands the same narration job to an LLM (OpenAI), which continues the story from the transcript instead of the keyword beat bank.
 
 ## Mobile testing
 
@@ -46,16 +46,16 @@ In mock mode (default) this isn't needed — the text-input flow works over plai
 
 ## Project layout
 
-- `client/` — React + Vite + TypeScript, Tailwind CSS, mobile-first. The comic-panel compositor lives in `client/src/components/ComicPanel/`.
-- `server/` — Node + TypeScript + Express + `ws`. The character state machine is in `server/src/state/stateMachine.ts`, the LLM orchestrator in `server/src/orchestrator/`.
+- `client/` — React + Vite + TypeScript, Tailwind CSS, mobile-first. The comic-panel compositor lives in `client/src/components/ComicPanel/`; the three screens (story, ending, comic strip) are `StoryView.tsx`, `components/StoryEnd/`, and `components/ComicExport/`.
+- `server/` — Node + TypeScript + Express + `ws`. Story premises live in `server/src/story/premises.ts`, the beat-continuation orchestrator in `server/src/orchestrator/`.
 - `packages/types/` — shared TypeScript types + `zod` schemas for every WebSocket message, used by both client and server.
 
 ## Scripts
 
 - `npm run dev` — run server + client together
 - `npm run typecheck` — typecheck all workspaces
-- `npm test` — run the state-machine unit tests
+- `npm test` — run the server unit tests (keyword classifier + ending-tally logic)
 
-## Out of scope for this MVP
+## Out of scope for now
 
-Multiple scenarios/characters, a props layer, 4-panel shareable PNG export, streaming partial transcripts, true word-synced streaming TTS, persistence/auth, and a broader automated test suite. See the plan history for the fuller 3-sprint roadmap these extend toward.
+A scene-picker screen, multiple story premises, real multi-counterpart scenes (more than one character on screen at once), true word-synced streaming TTS, persistence/auth, and a broader automated test suite. See the plan history for the fuller roadmap these extend toward.
