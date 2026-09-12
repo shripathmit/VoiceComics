@@ -1,9 +1,9 @@
 import { useWebSocketSession } from "./hooks/useWebSocketSession";
 import { useProviderStatus } from "./hooks/useProviderStatus";
 import { LatencyIndicator } from "./components/StatusHud/LatencyIndicator";
-import { RunView } from "./components/RunView";
-import { RunOutcomeScreen } from "./components/RunOutcome/RunOutcomeScreen";
-import { SessionDebriefScreen } from "./components/Debrief/SessionDebriefScreen";
+import { StoryView } from "./components/StoryView";
+import { StoryEndScreen } from "./components/StoryEnd/StoryEndScreen";
+import { ComicStripScreen } from "./components/ComicExport/ComicStripScreen";
 
 function App() {
   const { view } = useWebSocketSession();
@@ -22,9 +22,9 @@ function App() {
         <LatencyIndicator />
       </header>
 
-      {view === "run" && <RunView providers={providers} />}
-      {view === "run_outcome" && <RunOutcomeScreen />}
-      {view === "debrief" && <SessionDebriefScreen />}
+      {view === "story" && <StoryView providers={providers} />}
+      {view === "ending" && <StoryEndScreen />}
+      {view === "comic" && <ComicStripScreen />}
     </div>
   );
 }

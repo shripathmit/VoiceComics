@@ -1,13 +1,16 @@
-import type { CharacterDefinition, ConversationStatus, StateVector } from "@voicecomics/types";
-import type { TurnRecord } from "../services/llm/types.js";
+import type { StoryPremise, StoryStatus } from "@voicecomics/types";
+
+export interface StoryBeatRecord {
+  narration: string;
+  playerAction: string | null;
+}
 
 export interface SessionState {
   sessionId: string;
-  character: CharacterDefinition;
-  state: StateVector;
-  status: ConversationStatus;
-  turnIndex: number;
-  history: TurnRecord[];
+  premise: StoryPremise;
+  storyStatus: StoryStatus;
+  beatIndex: number;
+  history: StoryBeatRecord[];
   lastTurnAt: number;
   createdAt: number;
 }

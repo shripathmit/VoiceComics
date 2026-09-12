@@ -1,16 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { DEFAULT_STATE, type CharacterDefinition } from "@voicecomics/types";
+import type { StoryPremise } from "@voicecomics/types";
 import type { SessionState } from "./types.js";
 
 const sessions = new Map<string, SessionState>();
 
-export function createSession(character: CharacterDefinition): SessionState {
+export function createSession(premise: StoryPremise): SessionState {
   const session: SessionState = {
     sessionId: `sess_${randomUUID().slice(0, 12)}`,
-    character,
-    state: { ...DEFAULT_STATE },
-    status: "ongoing",
-    turnIndex: 0,
+    premise,
+    storyStatus: "ongoing",
+    beatIndex: 0,
     history: [],
     lastTurnAt: Date.now(),
     createdAt: Date.now(),

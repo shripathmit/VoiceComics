@@ -1,151 +1,131 @@
-import type { LlmAdapter, OrchestratorContext } from "./types.js";
+import type { LlmAdapter, StoryContext } from "./types.js";
 
-const RUDE_WORDS = [
-  "shut up",
-  "stupid",
-  "idiot",
-  "shut it",
-  "get lost",
-  "whatever loser",
-  "ugly",
-  "creep",
-  "touch you",
-  "sit on your lap",
-];
-const POLITE_MARKERS = ["mind if", "please", "hey", "hi ", "hello", "sorry", "thanks", "cool", "excuse me"];
-const CURIOUS_MARKERS = ["what are you", "studying", "working on", "what's that", "you like", "into"];
+export type Classification = "bold" | "cautious" | "curious" | "neutral";
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
+const BOLD_WORDS = ["open", "go", "confront", "grab", "push", "fight", "charge", "walk toward", "walk in", "run toward"];
+const CAUTIOUS_WORDS = ["wait", "hide", "quiet", "slow", "careful", "listen", "stay still", "back away", "close the laptop", "turn off", "lock"];
+const CURIOUS_WORDS = ["look", "check", "examine", "read", "investigate", "what is", "inspect", "search", "scroll", "open the file"];
+
+export function classify(text: string): Classification {
+  const lower = text.toLowerCase();
+  if (BOLD_WORDS.some((w) => lower.includes(w))) return "bold";
+  if (CAUTIOUS_WORDS.some((w) => lower.includes(w))) return "cautious";
+  if (CURIOUS_WORDS.some((w) => lower.includes(w))) return "curious";
+  return "neutral";
+}
+
+const MID_BEATS: Record<Classification, string[]> = {
+  bold: [
+    "You don't hesitate — you're on your feet and moving before you've finished the thought. The floorboards protest under you, and for a second the hallway light flickers, like it noticed too.",
+    "You close the distance fast. Whatever's down there, you'd rather face it head-on than sit here guessing. Your own footsteps sound too loud in the empty building.",
+    "You grab the nearest thing that could pass for a weapon — a stapler, absurdly — and push forward anyway. Bravery, you decide, doesn't have to look dignified.",
+  ],
+  cautious: [
+    "You stay put, pulse ticking in your ears, and let the silence stretch. If something's out there, better it come looking for a sound you're not making.",
+    "You ease the laptop shut without a click and slide off the couch, keeping low, keeping quiet. Whatever synced that file can wait until you're not alone anymore.",
+    "You back toward the exit one slow step at a time, eyes on the hallway, half-convinced that if you don't blink, nothing down there can move either.",
+  ],
+  curious: [
+    "You lean in instead of away. The file's still open on your screen — rows of timestamps, all from tonight, all from this building. You start reading.",
+    "You can't help it — you want to know. You scroll past the noise looking for a name, a location, anything that explains why this file exists at all.",
+    "Something about the file structure nags at you. You start cross-referencing folder names against the building directory, and a pattern starts to surface.",
+  ],
+  neutral: [
+    "You're not sure what to make of it yet, so you just watch — the cursor, the hallway, the dark — waiting to see which one moves first.",
+  ],
+};
+
+const POSE_BY_CLASS: Record<Classification, { sprite_pose: string; facial_expression: string; visual_fx: Array<{ type: string; position: string }> }> = {
+  bold: { sprite_pose: "SPRITE_LEANING_IN", facial_expression: "EXPR_SUBTLE_SMILE", visual_fx: [{ type: "ACTION_LINES", position: "top_right" }] },
+  cautious: { sprite_pose: "SPRITE_STEP_BACK", facial_expression: "EXPR_SKEPTICAL", visual_fx: [{ type: "SWEAT_DROP", position: "above_head" }] },
+  curious: { sprite_pose: "SPRITE_NEUTRAL", facial_expression: "EXPR_SURPRISED", visual_fx: [{ type: "SPARKLE", position: "top_left" }] },
+  neutral: { sprite_pose: "SPRITE_NEUTRAL", facial_expression: "EXPR_NEUTRAL", visual_fx: [] },
+};
+
+const ENDINGS: Record<Classification | "mixed", { narration: string; ending_mood: string }> = {
+  bold: {
+    narration:
+      "You reach the end of the hallway and there's nothing there — no threat, just a service door left open by a tired janitor, and a laptop fan that finally spins down. You laugh, a little too loud, and pack up to go home. Whatever this was, you walked straight through it.",
+    ending_mood: "triumphant",
+  },
+  cautious: {
+    narration:
+      "Morning finds you asleep on the couch, laptop closed, hallway door shut and locked like it always was. Maybe you dreamed the whole thing. Maybe you didn't. Either way, you're still here, and that's enough for tonight.",
+    ending_mood: "peaceful",
+  },
+  curious: {
+    narration:
+      "The file resolves into an answer you didn't expect — not a threat, but a record, the building quietly cataloguing itself. You understand it now, mostly. You're not sure that's better.",
+    ending_mood: "bittersweet",
+  },
+  neutral: {
+    narration:
+      "You never do find out what opened that door. The file stays on your laptop, unopened folders and all, and some nights you still hear it — the click, just once, right on schedule.",
+    ending_mood: "ominous",
+  },
+  mixed: {
+    narration:
+      "You never do find out what opened that door. The file stays on your laptop, unopened folders and all, and some nights you still hear it — the click, just once, right on schedule.",
+    ending_mood: "ominous",
+  },
+};
+
+export function tallyEnding(classifications: Classification[]): Classification | "mixed" {
+  const counts: Record<Classification, number> = { bold: 0, cautious: 0, curious: 0, neutral: 0 };
+  for (const c of classifications) counts[c] += 1;
+
+  const meaningful = (["bold", "cautious", "curious"] as const).map((k) => [k, counts[k]] as const);
+  const max = Math.max(...meaningful.map(([, n]) => n));
+  if (max === 0) return "neutral";
+  const leaders = meaningful.filter(([, n]) => n === max);
+  return leaders.length === 1 ? leaders[0][0] : "mixed";
 }
 
 /**
- * Deterministic zero-key stand-in for the LLM orchestrator. Scores the
- * transcript with simple keyword/heuristic rules against the current
- * prosody so the app is fully demoable without any API key.
+ * Deterministic zero-key stand-in for the story orchestrator: classifies the
+ * player's action into a small set of buckets via keyword rules and picks
+ * narration/visuals from a hand-authored beat bank, so the app is fully
+ * demoable and replayable without any API key.
  */
 export const mockLlmAdapter: LlmAdapter = {
   name: "mock",
-  async generate(ctx: OrchestratorContext) {
-    const text = ctx.transcript.toLowerCase();
-    const { prosody } = ctx;
+  async generate(ctx: StoryContext) {
+    const classification = classify(ctx.transcript);
+    const pastClassifications = ctx.history
+      .map((h) => h.playerAction)
+      .filter((a): a is string => Boolean(a))
+      .map(classify);
+    const allClassifications = [...pastClassifications, classification];
 
-    let rapportDelta = 0;
-    let patienceDelta = 0;
-    let comfortDelta = 0;
-    let boundaryViolation = false;
-
-    const isRude = RUDE_WORDS.some((w) => text.includes(w));
-    const isPolite = POLITE_MARKERS.some((w) => text.includes(w));
-    const isCurious = CURIOUS_MARKERS.some((w) => text.includes(w));
-
-    if (isRude) {
-      rapportDelta -= 22;
-      patienceDelta -= 25;
-      comfortDelta -= 18;
-      boundaryViolation = true;
-    } else {
-      if (isPolite) {
-        rapportDelta += 10;
-        comfortDelta += 8;
-      }
-      if (isCurious) {
-        rapportDelta += 8;
-        comfortDelta += 6;
-      }
-      if (!isPolite && !isCurious) {
-        // neutral small talk still gets a small, cautious bump
-        rapportDelta += 2;
-      }
-
-      // prosody adjustments
-      if (prosody.filler_word_count >= 3) {
-        patienceDelta -= 4;
-        rapportDelta -= 2;
-      }
-      if (prosody.energy_classification === "high_aggressive") {
-        rapportDelta -= 10;
-        patienceDelta -= 8;
-      } else if (prosody.energy_classification === "low_hesitant") {
-        comfortDelta -= 2;
-      } else if (prosody.energy_classification === "high_confident") {
-        rapportDelta += 3;
-      }
-      if (prosody.initiation_latency_ms > 6000) {
-        patienceDelta -= 3;
-      }
-      if (patienceDelta >= 0) patienceDelta += 2; // baseline patience regen on a non-hostile turn
+    if (ctx.forceEnding) {
+      const endingKey = tallyEnding(allClassifications);
+      const ending = ENDINGS[endingKey];
+      const visuals = POSE_BY_CLASS[classification === "neutral" ? "neutral" : classification];
+      return {
+        narration: ending.narration,
+        dialogue: null,
+        sprite_pose: visuals.sprite_pose,
+        facial_expression: visuals.facial_expression,
+        visual_fx: visuals.visual_fx,
+        bubble_type: "CAPTION_BOX",
+        story_status: "ended",
+        ending_mood: ending.ending_mood,
+      };
     }
 
-    rapportDelta = clamp(rapportDelta, -30, 20);
-    patienceDelta = clamp(patienceDelta, -30, 10);
-    comfortDelta = clamp(comfortDelta, -20, 20);
-
-    const projectedRapport = ctx.currentState.rapport_score + rapportDelta;
-
-    let sprite_pose: string;
-    let facial_expression: string;
-    let bubble_type: string;
-    let dialogue: string;
-    let visual_fx: Array<{ type: string; position: string }>;
-
-    if (boundaryViolation) {
-      sprite_pose = "SPRITE_STEP_BACK";
-      facial_expression = "EXPR_ANNOYED";
-      bubble_type = "SHARP_ANNOYED";
-      visual_fx = [{ type: "ACTION_LINES", position: "top_right" }];
-      dialogue = "Whoa, not cool. I'm gonna go sit somewhere else.";
-    } else if (isPolite && isCurious) {
-      sprite_pose = "SPRITE_LEANING_IN";
-      facial_expression = "EXPR_SUBTLE_SMILE";
-      bubble_type = "STANDARD_ROUND";
-      visual_fx = [{ type: "SPARKLE", position: "top_left" }];
-      dialogue = "Yeah, go for it — I'm just finishing a problem set.";
-    } else if (isPolite) {
-      sprite_pose = "SPRITE_NEUTRAL";
-      facial_expression = "EXPR_SUBTLE_SMILE";
-      bubble_type = "STANDARD_ROUND";
-      visual_fx = [];
-      dialogue = "Sure, nobody's sitting there.";
-    } else if (prosody.energy_classification === "low_hesitant") {
-      sprite_pose = "SPRITE_NEUTRAL";
-      facial_expression = "EXPR_SKEPTICAL";
-      bubble_type = "HESITANT_WAVY";
-      visual_fx = [{ type: "SWEAT_DROP", position: "above_head" }];
-      dialogue = "Uh... okay, I guess?";
-    } else {
-      sprite_pose = "SPRITE_CROSSED_ARMS";
-      facial_expression = "EXPR_SKEPTICAL";
-      bubble_type = "STANDARD_ROUND";
-      visual_fx = [];
-      dialogue = "I mean, sure. Just gimme some quiet.";
-    }
-
-    if (projectedRapport <= 15 && !boundaryViolation) {
-      facial_expression = "EXPR_ANNOYED";
-    }
-
-    const detected_tone = isRude ? "Rude" : isPolite ? "Polite" : "Neutral";
-    const detected_intention = boundaryViolation
-      ? "Hostile"
-      : isCurious
-        ? "Curious"
-        : isPolite
-          ? "Direct"
-          : "Casual";
+    const lines = MID_BEATS[classification];
+    const narration = lines[ctx.beatIndex % lines.length];
+    const visuals = POSE_BY_CLASS[classification];
 
     return {
-      rapport_delta: rapportDelta,
-      patience_delta: patienceDelta,
-      comfort_delta: comfortDelta,
-      boundary_violation: boundaryViolation,
-      sprite_pose,
-      facial_expression,
-      visual_fx,
-      bubble_type,
-      dialogue,
-      detected_tone,
-      detected_intention,
+      narration,
+      dialogue: null,
+      sprite_pose: visuals.sprite_pose,
+      facial_expression: visuals.facial_expression,
+      visual_fx: visuals.visual_fx,
+      bubble_type: "CAPTION_BOX",
+      story_status: "ongoing",
+      ending_mood: null,
     };
   },
 };

@@ -1,10 +1,10 @@
-import type { LlmAdapter, OrchestratorContext } from "./types.js";
+import type { LlmAdapter, StoryContext } from "./types.js";
 import { buildSystemPrompt, buildUserPrompt } from "../../orchestrator/promptTemplate.js";
 import { env } from "../../config/env.js";
 
 export const openAiLlmAdapter: LlmAdapter = {
   name: "openai",
-  async generate(ctx: OrchestratorContext): Promise<unknown> {
+  async generate(ctx: StoryContext): Promise<unknown> {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {

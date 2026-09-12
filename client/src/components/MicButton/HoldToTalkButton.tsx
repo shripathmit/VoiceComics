@@ -38,12 +38,12 @@ export function HoldToTalkButton() {
     [cancelRecording]
   );
 
-  let label = "Hold to talk";
+  let label = "Hold to speak your move";
   if (micPermission === "denied") label = "Mic blocked — check permissions";
   else if (isRecording) label = "Listening… release to send";
-  else if (turnPhase === "thinking") label = "Alex is thinking…";
-  else if (turnPhase === "speaking") label = "Alex is replying…";
-  else if (turnPhase === "ended") label = "Conversation ended";
+  else if (turnPhase === "thinking") label = "The story is unfolding…";
+  else if (turnPhase === "speaking") label = "Narrating…";
+  else if (turnPhase === "ended") label = "Story ended";
 
   return (
     <button

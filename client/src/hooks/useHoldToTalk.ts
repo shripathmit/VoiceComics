@@ -33,7 +33,7 @@ export function useHoldToTalk() {
     setIsRecording(false);
     recorderRef.current = null;
 
-    const { sessionId, turnIndex } = useSessionStore.getState();
+    const { sessionId, beatIndex } = useSessionStore.getState();
     if (!sessionId) return;
 
     try {
@@ -42,7 +42,7 @@ export function useHoldToTalk() {
       socket.send({
         event: "user_voice_turn",
         session_id: sessionId,
-        turn_index: turnIndex,
+        turn_index: beatIndex,
         mode: "audio",
         audio_payload: { format: format as "audio/webm;codecs=opus", data: base64 },
       });

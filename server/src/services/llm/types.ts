@@ -1,20 +1,17 @@
-import type { CharacterDefinition, StateVector, ProsodyMetrics } from "@voicecomics/types";
+import type { StoryPremise, ProsodyMetrics } from "@voicecomics/types";
+import type { StoryBeatRecord } from "../../session/types.js";
 
-export interface TurnRecord {
-  speaker: "user" | "character";
-  text: string;
-}
-
-export interface OrchestratorContext {
-  character: CharacterDefinition;
-  currentState: StateVector;
+export interface StoryContext {
+  premise: StoryPremise;
   transcript: string;
   prosody: ProsodyMetrics;
-  recentHistory: TurnRecord[];
+  history: StoryBeatRecord[];
+  beatIndex: number;
+  forceEnding: boolean;
 }
 
 export interface LlmAdapter {
   readonly name: string;
-  /** Returns a parsed-but-unvalidated object — the orchestrator validates it against OrchestratorOutputSchema. */
-  generate(ctx: OrchestratorContext): Promise<unknown>;
+  /** Returns a parsed-but-unvalidated object — the orchestrator validates it against StoryOrchestratorOutputSchema. */
+  generate(ctx: StoryContext): Promise<unknown>;
 }

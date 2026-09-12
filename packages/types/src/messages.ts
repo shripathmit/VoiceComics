@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { StateDeltasSchema, StateVectorSchema, ConversationStatusSchema } from "./state.js";
+import { StoryStatusSchema, EndingMoodSchema } from "./state.js";
 
 /* ---------- Client -> Server ---------- */
 
@@ -18,15 +18,15 @@ export const ClientVoiceTurnSchema = z.object({
 });
 export type ClientVoiceTurn = z.infer<typeof ClientVoiceTurnSchema>;
 
-export const ClientStartSessionSchema = z.object({
-  event: z.literal("start_session"),
-  character_id: z.string().default("alex_dorm_lounge"),
+export const ClientStartStorySchema = z.object({
+  event: z.literal("start_story"),
+  premise_id: z.string().default("the_late_shift"),
 });
-export type ClientStartSession = z.infer<typeof ClientStartSessionSchema>;
+export type ClientStartStory = z.infer<typeof ClientStartStorySchema>;
 
 export const ClientMessageSchema = z.discriminatedUnion("event", [
   ClientVoiceTurnSchema,
-  ClientStartSessionSchema,
+  ClientStartStorySchema,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
@@ -81,7 +81,7 @@ export type VisualFx = z.infer<typeof VisualFxSchema>;
 export const SpeechBubbleSchema = z.object({
   speaker: z.string(),
   text: z.string(),
-  bubble_type: z.enum(["STANDARD_ROUND", "SHARP_ANNOYED", "HESITANT_WAVY"]),
+  bubble_type: z.enum(["STANDARD_ROUND", "SHARP_ANNOYED", "HESITANT_WAVY", "CAPTION_BOX"]),
   tail_anchor: z.object({ x: z.number(), y: z.number() }),
 });
 export type SpeechBubble = z.infer<typeof SpeechBubbleSchema>;
@@ -98,34 +98,26 @@ export const PanelRenderSchema = z.object({
   speech_bubble: SpeechBubbleSchema,
   audio_stream_url: z.string().nullable(),
   use_client_tts: z.boolean(),
-  conversation_status: ConversationStatusSchema,
+  story_status: StoryStatusSchema,
 });
 export type PanelRender = z.infer<typeof PanelRenderSchema>;
 
-export const SystemReadSchema = z.object({
-  tone: z.enum(["Polite", "Neutral", "Rude"]),
-  intention: z.enum(["Curious", "Direct", "Casual", "Hostile"]),
-});
-export type SystemRead = z.infer<typeof SystemReadSchema>;
-
-export const StateUpdateEventSchema = z.object({
-  event: z.literal("state_update"),
+export const StoryBeatEventSchema = z.object({
+  event: z.literal("story_beat"),
   session_id: z.string(),
-  turn_index: z.number().int(),
-  state_updates: StateDeltasSchema,
-  current_state: StateVectorSchema,
+  beat_index: z.number().int(),
   panel_render: PanelRenderSchema,
-  system_read: SystemReadSchema,
+  story_status: StoryStatusSchema,
+  ending_mood: EndingMoodSchema.nullable(),
 });
-export type StateUpdateEvent = z.infer<typeof StateUpdateEventSchema>;
+export type StoryBeatEvent = z.infer<typeof StoryBeatEventSchema>;
 
-export const SessionStartedEventSchema = z.object({
-  event: z.literal("session_started"),
+export const StoryStartedEventSchema = z.object({
+  event: z.literal("story_started"),
   session_id: z.string(),
-  current_state: StateVectorSchema,
   panel_render: PanelRenderSchema,
 });
-export type SessionStartedEvent = z.infer<typeof SessionStartedEventSchema>;
+export type StoryStartedEvent = z.infer<typeof StoryStartedEventSchema>;
 
 export const ErrorEventSchema = z.object({
   event: z.literal("error"),
@@ -136,25 +128,22 @@ export type ErrorEvent = z.infer<typeof ErrorEventSchema>;
 
 export const ServerMessageSchema = z.discriminatedUnion("event", [
   AsrProsodyEventSchema,
-  StateUpdateEventSchema,
-  SessionStartedEventSchema,
+  StoryBeatEventSchema,
+  StoryStartedEventSchema,
   ErrorEventSchema,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 
 /* ---------- LLM orchestrator structured output ---------- */
 
-export const OrchestratorOutputSchema = z.object({
-  rapport_delta: StateDeltasSchema.shape.rapport_delta,
-  patience_delta: StateDeltasSchema.shape.patience_delta,
-  comfort_delta: StateDeltasSchema.shape.comfort_delta,
-  boundary_violation: z.boolean(),
+export const StoryOrchestratorOutputSchema = z.object({
+  narration: z.string(),
+  dialogue: z.object({ speaker: z.string(), text: z.string() }).nullable(),
   sprite_pose: SpritePoseSchema,
   facial_expression: FacialExpressionSchema,
   visual_fx: z.array(VisualFxSchema),
   bubble_type: SpeechBubbleSchema.shape.bubble_type,
-  dialogue: z.string(),
-  detected_tone: SystemReadSchema.shape.tone,
-  detected_intention: SystemReadSchema.shape.intention,
+  story_status: StoryStatusSchema,
+  ending_mood: EndingMoodSchema.nullable(),
 });
-export type OrchestratorOutput = z.infer<typeof OrchestratorOutputSchema>;
+export type StoryOrchestratorOutput = z.infer<typeof StoryOrchestratorOutputSchema>;

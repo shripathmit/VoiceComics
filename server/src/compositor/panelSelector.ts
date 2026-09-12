@@ -1,30 +1,32 @@
-import type { ConversationStatus, OrchestratorOutput, PanelRender } from "@voicecomics/types";
+import type { PanelRender, StoryOrchestratorOutput, StoryStatus } from "@voicecomics/types";
 import type { SessionState } from "../session/types.js";
 import type { TtsResult } from "../services/tts/types.js";
 
 export function buildPanelRender(
   session: SessionState,
-  output: OrchestratorOutput,
+  output: StoryOrchestratorOutput,
   tts: TtsResult,
-  status: ConversationStatus
+  status: StoryStatus
 ): PanelRender {
+  const isDialogue = output.dialogue !== null;
+
   return {
-    panel_id: `p_${String(session.turnIndex).padStart(2, "0")}`,
-    background_asset_id: session.character.background_asset_id,
+    panel_id: `p_${String(session.beatIndex).padStart(2, "0")}`,
+    background_asset_id: session.premise.background_asset_id,
     character_rig: {
-      character_id: session.character.character_id,
+      character_id: session.premise.premise_id,
       sprite_pose: output.sprite_pose,
       facial_expression: output.facial_expression,
     },
     visual_fx: output.visual_fx,
     speech_bubble: {
-      speaker: session.character.name,
-      text: output.dialogue,
+      speaker: isDialogue ? output.dialogue!.speaker : "",
+      text: isDialogue ? output.dialogue!.text : output.narration,
       bubble_type: output.bubble_type,
       tail_anchor: { x: 0.62, y: 0.38 },
     },
     audio_stream_url: tts.audioDataUrl,
     use_client_tts: tts.useClientTts,
-    conversation_status: status,
+    story_status: status,
   };
 }

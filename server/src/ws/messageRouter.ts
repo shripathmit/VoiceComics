@@ -1,14 +1,9 @@
-import {
-  ClientMessageSchema,
-  type ClientMessage,
-  type ServerMessage,
-} from "@voicecomics/types";
+import { ClientMessageSchema, type ClientMessage, type ServerMessage } from "@voicecomics/types";
 import { createSession, getSession } from "../session/sessionStore.js";
-import { CHARACTERS, dormLoungeAlex } from "../orchestrator/characters/defaultCharacter.js";
+import { PREMISES, theLateShift } from "../story/premises.js";
 import { providers } from "../config/providers.js";
 import { extractProsody } from "../prosody/extractProsody.js";
-import { evaluateTurn } from "../orchestrator/orchestrator.js";
-import { applyDeltas, checkTerminationWithCap } from "../state/stateMachine.js";
+import { continueStory } from "../orchestrator/orchestrator.js";
 import { buildPanelRender } from "../compositor/panelSelector.js";
 
 type Send = (msg: ServerMessage) => void;
@@ -21,31 +16,34 @@ export async function handleClientMessage(raw: unknown, send: Send): Promise<voi
   }
   const message: ClientMessage = parsed.data;
 
-  if (message.event === "start_session") {
-    const character = CHARACTERS[message.character_id] ?? dormLoungeAlex;
-    const session = createSession(character);
+  if (message.event === "start_story") {
+    const premise = PREMISES[message.premise_id] ?? theLateShift;
+    const session = createSession(premise);
+    session.history.push({ narration: premise.opening_narration, playerAction: null });
+
+    const tts = await providers.tts.synthesize(premise.opening_narration);
+
     send({
-      event: "session_started",
+      event: "story_started",
       session_id: session.sessionId,
-      current_state: session.state,
       panel_render: {
-        panel_id: "p_00",
-        background_asset_id: character.background_asset_id,
+        panel_id: "p_intro",
+        background_asset_id: premise.background_asset_id,
         character_rig: {
-          character_id: character.character_id,
+          character_id: premise.premise_id,
           sprite_pose: "SPRITE_NEUTRAL",
           facial_expression: "EXPR_NEUTRAL",
         },
         visual_fx: [],
         speech_bubble: {
-          speaker: character.name,
-          text: "(headphones half-on, working on a laptop)",
-          bubble_type: "STANDARD_ROUND",
+          speaker: "",
+          text: premise.opening_narration,
+          bubble_type: "CAPTION_BOX",
           tail_anchor: { x: 0.62, y: 0.38 },
         },
-        audio_stream_url: null,
-        use_client_tts: false,
-        conversation_status: "ongoing",
+        audio_stream_url: tts.audioDataUrl,
+        use_client_tts: tts.useClientTts,
+        story_status: "ongoing",
       },
     });
     return;
@@ -54,14 +52,14 @@ export async function handleClientMessage(raw: unknown, send: Send): Promise<voi
   // event === "user_voice_turn"
   const session = getSession(message.session_id);
   if (!session) {
-    send({ event: "error", session_id: message.session_id, message: "Unknown session_id — start a new session." });
+    send({ event: "error", session_id: message.session_id, message: "Unknown session_id — start a new story." });
     return;
   }
-  if (session.status !== "ongoing") {
+  if (session.storyStatus !== "ongoing") {
     send({
       event: "error",
       session_id: session.sessionId,
-      message: `Session already ended (${session.status}) — start a new session.`,
+      message: "This story has already ended — start a new one.",
     });
     return;
   }
@@ -81,40 +79,28 @@ export async function handleClientMessage(raw: unknown, send: Send): Promise<voi
   send({
     event: "asr_prosody",
     session_id: session.sessionId,
-    turn_index: session.turnIndex,
+    turn_index: session.beatIndex,
     transcription: transcribeResult.transcription,
     prosody_metrics: prosody,
   });
 
-  session.history.push({ speaker: "user", text: transcribeResult.transcription });
+  const output = await continueStory(providers.llm, session, transcribeResult.transcription, prosody);
 
-  const output = await evaluateTurn(providers.llm, session, transcribeResult.transcription, prosody);
-
-  session.state = applyDeltas(session.state, {
-    rapport_delta: output.rapport_delta,
-    patience_delta: output.patience_delta,
-    comfort_delta: output.comfort_delta,
-  });
-  session.status = checkTerminationWithCap(session.state, output.boundary_violation, session.turnIndex + 1);
-  session.history.push({ speaker: "character", text: output.dialogue });
+  session.history.push({ narration: output.narration, playerAction: transcribeResult.transcription });
+  session.storyStatus = output.story_status;
   session.lastTurnAt = Date.now();
 
-  const tts = await providers.tts.synthesize(output.dialogue);
-  const panelRender = buildPanelRender(session, output, tts, session.status);
+  const tts = await providers.tts.synthesize(output.dialogue?.text ?? output.narration);
+  const panelRender = buildPanelRender(session, output, tts, session.storyStatus);
 
   send({
-    event: "state_update",
+    event: "story_beat",
     session_id: session.sessionId,
-    turn_index: session.turnIndex,
-    state_updates: {
-      rapport_delta: output.rapport_delta,
-      patience_delta: output.patience_delta,
-      comfort_delta: output.comfort_delta,
-    },
-    current_state: session.state,
+    beat_index: session.beatIndex,
     panel_render: panelRender,
-    system_read: { tone: output.detected_tone, intention: output.detected_intention },
+    story_status: session.storyStatus,
+    ending_mood: output.ending_mood,
   });
 
-  session.turnIndex += 1;
+  session.beatIndex += 1;
 }

@@ -13,9 +13,13 @@ const BUBBLE_STYLE: Record<SpeechBubbleData["bubble_type"], { rx: number; dash?:
   STANDARD_ROUND: { rx: 18, strokeWidth: 2.5 },
   SHARP_ANNOYED: { rx: 4, strokeWidth: 3 },
   HESITANT_WAVY: { rx: 18, dash: "5 4", strokeWidth: 2.2 },
+  CAPTION_BOX: { rx: 6, strokeWidth: 2.5 },
 };
 
 export function SpeechBubble({ bubble }: { bubble: SpeechBubbleData }) {
+  const isCaption = bubble.bubble_type === "CAPTION_BOX";
+  const hasSpeaker = bubble.speaker.trim().length > 0;
+
   const lines = wrapText(bubble.text, MAX_CHARS_PER_LINE);
   const longestLine = Math.max(...lines.map((l) => l.length), 8);
   const width = Math.min(PANEL_W - 40, Math.max(140, longestLine * 8.2 + PAD_X * 2));
@@ -43,19 +47,23 @@ export function SpeechBubble({ bubble }: { bubble: SpeechBubbleData }) {
         strokeDasharray={style.dash}
         filter="url(#sketchy)"
       />
-      <path
-        d={`M${tailBaseX - 10},${tailBaseY - 2} L${tailTargetX},${tailTargetY} L${tailBaseX + 10},${tailBaseY - 2} Z`}
-        fill={PAPER}
-        stroke={INK}
-        strokeWidth={style.strokeWidth}
-        filter="url(#sketchy)"
-      />
+      {!isCaption && (
+        <path
+          d={`M${tailBaseX - 10},${tailBaseY - 2} L${tailTargetX},${tailTargetY} L${tailBaseX + 10},${tailBaseY - 2} Z`}
+          fill={PAPER}
+          stroke={INK}
+          strokeWidth={style.strokeWidth}
+          filter="url(#sketchy)"
+        />
+      )}
       <text x={x + width / 2} y={y + PAD_Y + 4} textAnchor="middle" className="font-sketch" fontSize={13} fill={INK}>
-        <tspan x={x + width / 2} dy={0} fontWeight={700} fontSize={10} opacity={0.65}>
-          {bubble.speaker.toUpperCase()}
-        </tspan>
+        {hasSpeaker && (
+          <tspan x={x + width / 2} dy={0} fontWeight={700} fontSize={10} opacity={0.65}>
+            {bubble.speaker.toUpperCase()}
+          </tspan>
+        )}
         {lines.map((line, i) => (
-          <tspan key={i} x={x + width / 2} dy={i === 0 ? 16 : LINE_HEIGHT}>
+          <tspan key={i} x={x + width / 2} dy={hasSpeaker ? (i === 0 ? 16 : LINE_HEIGHT) : i === 0 ? 4 : LINE_HEIGHT}>
             {line}
           </tspan>
         ))}

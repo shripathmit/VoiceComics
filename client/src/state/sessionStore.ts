@@ -1,119 +1,76 @@
 import { create } from "zustand";
-import type { PanelRender, ProsodyMetrics, StateDeltas, StateVector, SystemRead } from "@voicecomics/types";
-import type { RunSummary, TurnLogEntry } from "../lib/types";
-import { computeRunGrades } from "../lib/grading";
+import type { EndingMood, PanelRender, ProsodyMetrics } from "@voicecomics/types";
 
 export type ConnectionStatus = "connecting" | "open" | "closed";
 export type TurnPhase = "idle" | "listening" | "thinking" | "speaking" | "ended";
-export type View = "run" | "run_outcome" | "debrief";
+export type View = "story" | "ending" | "comic";
+
+export interface StoryBeatSnapshot {
+  beatIndex: number;
+  panelRender: PanelRender;
+}
 
 export interface SessionStore {
   connectionStatus: ConnectionStatus;
   sessionId: string | null;
-  turnIndex: number;
+  beatIndex: number;
   turnPhase: TurnPhase;
-  currentState: StateVector | null;
   panelRender: PanelRender | null;
   lastProsody: ProsodyMetrics | null;
   errorMessage: string | null;
 
   view: View;
-  runNumber: number;
-  turnLog: TurnLogEntry[];
-  runHistory: RunSummary[];
-  lastDeltas: StateDeltas | null;
-  lastSystemRead: SystemRead | null;
+  storyHistory: StoryBeatSnapshot[];
+  endingMood: EndingMood | null;
 
   setConnectionStatus: (status: ConnectionStatus) => void;
-  setSessionStarted: (sessionId: string, currentState: StateVector, panelRender: PanelRender) => void;
+  setStoryStarted: (sessionId: string, panelRender: PanelRender) => void;
   setTurnPhase: (phase: TurnPhase) => void;
-  setAsrProsody: (turnIndex: number, prosody: ProsodyMetrics) => void;
-  recordTurn: (deltas: StateDeltas, prosody: ProsodyMetrics, systemRead: SystemRead) => void;
-  setStateUpdate: (turnIndex: number, currentState: StateVector, panelRender: PanelRender) => void;
-  completeRun: () => void;
-  startNewRun: () => void;
+  setAsrProsody: (beatIndex: number, prosody: ProsodyMetrics) => void;
+  setStoryBeat: (beatIndex: number, panelRender: PanelRender, endingMood: EndingMood | null) => void;
   setView: (view: View) => void;
   setError: (message: string) => void;
-  resetSession: () => void;
+  resetStory: () => void;
 }
 
-const RUN_SCOPED_DEFAULTS = {
+const STORY_SCOPED_DEFAULTS = {
   sessionId: null as string | null,
-  turnIndex: 0,
+  beatIndex: 0,
   turnPhase: "idle" as TurnPhase,
-  currentState: null as StateVector | null,
   panelRender: null as PanelRender | null,
   lastProsody: null as ProsodyMetrics | null,
   errorMessage: null as string | null,
-  turnLog: [] as TurnLogEntry[],
-  lastDeltas: null as StateDeltas | null,
-  lastSystemRead: null as SystemRead | null,
+  storyHistory: [] as StoryBeatSnapshot[],
+  endingMood: null as EndingMood | null,
+  view: "story" as View,
 };
 
-export const useSessionStore = create<SessionStore>((set, get) => ({
+export const useSessionStore = create<SessionStore>((set) => ({
   connectionStatus: "connecting",
-  ...RUN_SCOPED_DEFAULTS,
-
-  view: "run",
-  runNumber: 1,
-  runHistory: [],
+  ...STORY_SCOPED_DEFAULTS,
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
-  setSessionStarted: (sessionId, currentState, panelRender) =>
-    set({ sessionId, currentState, panelRender, turnIndex: 0, turnPhase: "idle", errorMessage: null }),
-  setTurnPhase: (phase) => set({ turnPhase: phase }),
-  setAsrProsody: (turnIndex, prosody) => set({ turnIndex, lastProsody: prosody, turnPhase: "thinking" }),
-  recordTurn: (deltas, prosody, systemRead) =>
-    set((s) => ({
-      turnLog: [
-        ...s.turnLog,
-        {
-          rapport_delta: deltas.rapport_delta,
-          patience_delta: deltas.patience_delta,
-          comfort_delta: deltas.comfort_delta,
-          prosody,
-          tone: systemRead.tone,
-          intention: systemRead.intention,
-        },
-      ],
-      lastDeltas: deltas,
-      lastSystemRead: systemRead,
-    })),
-  setStateUpdate: (turnIndex, currentState, panelRender) =>
+  setStoryStarted: (sessionId, panelRender) =>
     set({
-      turnIndex: turnIndex + 1,
-      currentState,
+      sessionId,
       panelRender,
-      turnPhase: panelRender.conversation_status === "ongoing" ? "speaking" : "ended",
+      beatIndex: 0,
+      turnPhase: "idle",
+      errorMessage: null,
+      storyHistory: [{ beatIndex: 0, panelRender }],
     }),
-  completeRun: () => {
-    const s = get();
-    if (!s.panelRender || s.panelRender.conversation_status === "ongoing") return;
-    const summary: RunSummary = {
-      runNumber: s.runNumber,
-      outcome: s.panelRender.conversation_status,
-      grades: computeRunGrades(s.turnLog),
-      turnLog: s.turnLog,
-      panelRender: s.panelRender,
-    };
-    set({ runHistory: [...s.runHistory, summary], view: "run_outcome" });
-  },
-  startNewRun: () =>
+  setTurnPhase: (phase) => set({ turnPhase: phase }),
+  setAsrProsody: (beatIndex, prosody) => set({ beatIndex, lastProsody: prosody, turnPhase: "thinking" }),
+  setStoryBeat: (beatIndex, panelRender, endingMood) =>
     set((s) => ({
-      ...RUN_SCOPED_DEFAULTS,
-      connectionStatus: s.connectionStatus,
-      runNumber: s.runNumber + 1,
-      runHistory: s.runHistory,
-      view: "run",
+      beatIndex: beatIndex + 1,
+      panelRender,
+      endingMood,
+      turnPhase: panelRender.story_status === "ongoing" ? "speaking" : "ended",
+      storyHistory: [...s.storyHistory, { beatIndex, panelRender }],
+      view: panelRender.story_status === "ongoing" ? s.view : "ending",
     })),
   setView: (view) => set({ view }),
   setError: (message) => set({ errorMessage: message, turnPhase: "idle" }),
-  resetSession: () =>
-    set((s) => ({
-      ...RUN_SCOPED_DEFAULTS,
-      connectionStatus: s.connectionStatus,
-      view: "run",
-      runNumber: 1,
-      runHistory: [],
-    })),
+  resetStory: () => set({ ...STORY_SCOPED_DEFAULTS }),
 }));
