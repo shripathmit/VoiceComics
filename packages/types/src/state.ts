@@ -19,6 +19,7 @@ export const ConversationStatusSchema = z.enum([
   "success",
   "soft_disengage",
   "hard_rejection",
+  "time_expired",
 ]);
 export type ConversationStatus = z.infer<typeof ConversationStatusSchema>;
 

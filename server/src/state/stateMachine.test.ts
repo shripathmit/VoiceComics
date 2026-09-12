@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyDeltas, checkTermination } from "./stateMachine.js";
+import { applyDeltas, checkTermination, checkTerminationWithCap, MAX_TURNS_PER_RUN } from "./stateMachine.js";
 
 test("applyDeltas clamps to [0, 100]", () => {
   const result = applyDeltas(
@@ -39,4 +39,19 @@ test("checkTermination: hard_rejection on low rapport or boundary violation", ()
     checkTermination({ rapport_score: 90, patience_level: 90, comfort_level: 90 }, true),
     "hard_rejection"
   );
+});
+
+test("checkTerminationWithCap: stays ongoing before the cap", () => {
+  const state = { rapport_score: 50, patience_level: 50, comfort_level: 50 };
+  assert.equal(checkTerminationWithCap(state, false, MAX_TURNS_PER_RUN - 1), "ongoing");
+});
+
+test("checkTerminationWithCap: times out at the cap if still ongoing", () => {
+  const state = { rapport_score: 50, patience_level: 50, comfort_level: 50 };
+  assert.equal(checkTerminationWithCap(state, false, MAX_TURNS_PER_RUN), "time_expired");
+});
+
+test("checkTerminationWithCap: a real outcome still wins even past the cap", () => {
+  const state = { rapport_score: 80, patience_level: 40, comfort_level: 50 };
+  assert.equal(checkTerminationWithCap(state, false, MAX_TURNS_PER_RUN), "success");
 });

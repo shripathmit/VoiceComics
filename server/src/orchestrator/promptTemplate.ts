@@ -23,9 +23,10 @@ Evaluate the user's latest turn:
 4. Select a matching character sprite_pose (one of SPRITE_NEUTRAL, SPRITE_LEANING_IN, SPRITE_CROSSED_ARMS, SPRITE_STEP_BACK), facial_expression (one of EXPR_SUBTLE_SMILE, EXPR_NEUTRAL, EXPR_SKEPTICAL, EXPR_ANNOYED, EXPR_SURPRISED), visual_fx (array of {type, position} where type is one of ACTION_LINES, SWEAT_DROP, SPARKLE), and bubble_type (one of STANDARD_ROUND, SHARP_ANNOYED, HESITANT_WAVY).
 5. Write in-character dialogue under 20 words.
 6. Set boundary_violation to true only if the user's turn crossed a clear personal/physical boundary.
+7. Classify the user's turn itself (not your reply) as detected_tone (one of Polite, Neutral, Rude) and detected_intention (one of Curious, Direct, Casual, Hostile) — this is shown to the user as a "Vibe Analyzer" read of what they just said.
 
 Respond with ONLY strict JSON matching this shape, no prose, no markdown fences:
-{"rapport_delta": number, "patience_delta": number, "comfort_delta": number, "boundary_violation": boolean, "sprite_pose": string, "facial_expression": string, "visual_fx": [{"type": string, "position": string}], "bubble_type": string, "dialogue": string}`;
+{"rapport_delta": number, "patience_delta": number, "comfort_delta": number, "boundary_violation": boolean, "sprite_pose": string, "facial_expression": string, "visual_fx": [{"type": string, "position": string}], "bubble_type": string, "dialogue": string, "detected_tone": string, "detected_intention": string}`;
 }
 
 export function buildUserPrompt(ctx: OrchestratorContext): string {

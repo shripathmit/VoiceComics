@@ -8,7 +8,7 @@ import { CHARACTERS, dormLoungeAlex } from "../orchestrator/characters/defaultCh
 import { providers } from "../config/providers.js";
 import { extractProsody } from "../prosody/extractProsody.js";
 import { evaluateTurn } from "../orchestrator/orchestrator.js";
-import { applyDeltas, checkTermination } from "../state/stateMachine.js";
+import { applyDeltas, checkTerminationWithCap } from "../state/stateMachine.js";
 import { buildPanelRender } from "../compositor/panelSelector.js";
 
 type Send = (msg: ServerMessage) => void;
@@ -95,7 +95,7 @@ export async function handleClientMessage(raw: unknown, send: Send): Promise<voi
     patience_delta: output.patience_delta,
     comfort_delta: output.comfort_delta,
   });
-  session.status = checkTermination(session.state, output.boundary_violation);
+  session.status = checkTerminationWithCap(session.state, output.boundary_violation, session.turnIndex + 1);
   session.history.push({ speaker: "character", text: output.dialogue });
   session.lastTurnAt = Date.now();
 
@@ -113,6 +113,7 @@ export async function handleClientMessage(raw: unknown, send: Send): Promise<voi
     },
     current_state: session.state,
     panel_render: panelRender,
+    system_read: { tone: output.detected_tone, intention: output.detected_intention },
   });
 
   session.turnIndex += 1;

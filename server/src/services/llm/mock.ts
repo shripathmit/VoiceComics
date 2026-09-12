@@ -125,6 +125,15 @@ export const mockLlmAdapter: LlmAdapter = {
       facial_expression = "EXPR_ANNOYED";
     }
 
+    const detected_tone = isRude ? "Rude" : isPolite ? "Polite" : "Neutral";
+    const detected_intention = boundaryViolation
+      ? "Hostile"
+      : isCurious
+        ? "Curious"
+        : isPolite
+          ? "Direct"
+          : "Casual";
+
     return {
       rapport_delta: rapportDelta,
       patience_delta: patienceDelta,
@@ -135,6 +144,8 @@ export const mockLlmAdapter: LlmAdapter = {
       visual_fx,
       bubble_type,
       dialogue,
+      detected_tone,
+      detected_intention,
     };
   },
 };

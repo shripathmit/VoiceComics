@@ -102,6 +102,12 @@ export const PanelRenderSchema = z.object({
 });
 export type PanelRender = z.infer<typeof PanelRenderSchema>;
 
+export const SystemReadSchema = z.object({
+  tone: z.enum(["Polite", "Neutral", "Rude"]),
+  intention: z.enum(["Curious", "Direct", "Casual", "Hostile"]),
+});
+export type SystemRead = z.infer<typeof SystemReadSchema>;
+
 export const StateUpdateEventSchema = z.object({
   event: z.literal("state_update"),
   session_id: z.string(),
@@ -109,6 +115,7 @@ export const StateUpdateEventSchema = z.object({
   state_updates: StateDeltasSchema,
   current_state: StateVectorSchema,
   panel_render: PanelRenderSchema,
+  system_read: SystemReadSchema,
 });
 export type StateUpdateEvent = z.infer<typeof StateUpdateEventSchema>;
 
@@ -147,5 +154,7 @@ export const OrchestratorOutputSchema = z.object({
   visual_fx: z.array(VisualFxSchema),
   bubble_type: SpeechBubbleSchema.shape.bubble_type,
   dialogue: z.string(),
+  detected_tone: SystemReadSchema.shape.tone,
+  detected_intention: SystemReadSchema.shape.intention,
 });
 export type OrchestratorOutput = z.infer<typeof OrchestratorOutputSchema>;

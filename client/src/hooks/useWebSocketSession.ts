@@ -2,8 +2,7 @@ import { useEffect, useRef } from "react";
 import { socket } from "../services/ws/socket";
 import { useSessionStore } from "../state/sessionStore";
 import { playAudioDataUrl, speakWithWebSpeech } from "../services/tts/webSpeechFallback";
-
-const CHARACTER_ID = "alex_dorm_lounge";
+import { CHARACTER_ID, VIBE_ANALYZER_DELAY_MS } from "../lib/constants";
 
 export function useWebSocketSession() {
   const store = useSessionStore();
@@ -32,16 +31,29 @@ export function useWebSocketSession() {
           break;
         case "state_update": {
           s.setStateUpdate(msg.turn_index, msg.current_state, msg.panel_render);
+          if (s.lastProsody) {
+            s.recordTurn(msg.state_updates, s.lastProsody, msg.system_read);
+          }
+
           const bubble = msg.panel_render.speech_bubble;
-          const finishSpeaking = () => useSessionStore.getState().setTurnPhase(
-            msg.panel_render.conversation_status === "ongoing" ? "idle" : "ended"
-          );
-          if (msg.panel_render.use_client_tts) {
-            speakWithWebSpeech(bubble.text, finishSpeaking);
-          } else if (msg.panel_render.audio_stream_url) {
-            playAudioDataUrl(msg.panel_render.audio_stream_url, finishSpeaking);
-          } else {
-            finishSpeaking();
+          const conversationStatus = msg.panel_render.conversation_status;
+
+          const finishSpeaking = () =>
+            useSessionStore.getState().setTurnPhase(conversationStatus === "ongoing" ? "idle" : "ended");
+
+          const speak = () => {
+            if (msg.panel_render.use_client_tts) {
+              speakWithWebSpeech(bubble.text, finishSpeaking);
+            } else if (msg.panel_render.audio_stream_url) {
+              playAudioDataUrl(msg.panel_render.audio_stream_url, finishSpeaking);
+            } else {
+              finishSpeaking();
+            }
+          };
+          setTimeout(speak, VIBE_ANALYZER_DELAY_MS);
+
+          if (conversationStatus !== "ongoing") {
+            useSessionStore.getState().completeRun();
           }
           break;
         }

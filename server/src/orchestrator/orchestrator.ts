@@ -13,6 +13,8 @@ const SAFE_FALLBACK_OUTPUT: OrchestratorOutput = {
   visual_fx: [],
   bubble_type: "STANDARD_ROUND",
   dialogue: "Sorry, what was that?",
+  detected_tone: "Neutral",
+  detected_intention: "Casual",
 };
 
 /**

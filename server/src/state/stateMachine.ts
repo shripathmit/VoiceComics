@@ -21,3 +21,16 @@ export function checkTermination(
   if (state.rapport_score >= 75 && state.patience_level > 30) return "success";
   return "ongoing";
 }
+
+/** Safety cap so a run always resolves even if no threshold is ever crossed. */
+export const MAX_TURNS_PER_RUN = 8;
+
+export function checkTerminationWithCap(
+  state: StateVector,
+  boundaryViolation: boolean,
+  turnsCompleted: number
+): ConversationStatus {
+  const status = checkTermination(state, boundaryViolation);
+  if (status === "ongoing" && turnsCompleted >= MAX_TURNS_PER_RUN) return "time_expired";
+  return status;
+}
